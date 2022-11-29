@@ -1,5 +1,4 @@
 const argv = require("minimist")(process.argv.slice(2));
-console.log(argv);
 
 let today = new Date();
 let year = argv["y"] || today.getFullYear();
