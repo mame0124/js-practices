@@ -1,19 +1,15 @@
 const argv = require("minimist")(process.argv.slice(2));
 
-let today = new Date();
-let year = argv["y"] || today.getFullYear();
-let month = argv["m"] || today.getMonth() + 1;
+const today = new Date();
+const year = argv["y"] || today.getFullYear();
+const month = argv["m"] || today.getMonth() + 1;
 
-let firstDay = new Date(year, month - 1, 1);
-let lastDay = new Date(year, month, 0);
+const firstDay = new Date(year, month - 1, 1);
+const lastDay = new Date(year, month, 0);
 
-let cal = new Array(firstDay.getDay()).fill("  ");
-for (firstDay; firstDay <= lastDay; firstDay.setDate(firstDay.getDate() + 1)) {
-  if (firstDay.getDate() < 10) {
-    cal.push(" " + firstDay.getDate());
-  } else {
-    cal.push(firstDay.getDate());
-  }
+const cal = new Array(firstDay.getDay()).fill("  ");
+for (; firstDay <= lastDay; firstDay.setDate(firstDay.getDate() + 1)) {
+  cal.push(firstDay.getDate().toString().padStart(2, " "));
 }
 
 console.log(`      ${month}月  ${year}`);
