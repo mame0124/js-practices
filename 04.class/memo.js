@@ -1,6 +1,8 @@
-const fs = require("fs");
+const fs = require("fs").promises;
 const readline = require("readline");
 const yargs = require("yargs");
+const path = require("path");
+const { Select } = require("enquirer");
 const argv = yargs
   .locale("en")
   .usage("$0 checks whether the year is a leap year or not.")
@@ -16,65 +18,162 @@ const argv = yargs
     alias: "d",
   })
   .alias("h", "help")
-  .alias("v", "version")
-  .example(
-    "$0 -y 2022 -f short",
-    'Show message such as "22 is NOT a Leap Year". "22" is formatted year as you specified by -f parameter, and tell whether the year is leap year or not.'
-  )
-  .epilog("Copyright 2022 Masa all Rights Reserved.").argv;
+  .alias("v", "version").argv;
 
-//console.log(`l=${argv.list},r=${argv.reference},d=${argv.delete}`);
-
-function getFileList() {
-  const files = fs.readdirSync(`./memolist`);
-  return files.map((fileName) => {
-    const filePath = `./memolist/${fileName}`;
-    const firstLine = fs.readFileSync(filePath, "utf8").split("\n")[0];
-    return { message: firstLine, value: fileName };
-  });
-}
+const directoryPath = "./memolist";
 
 if (argv.list) {
-  const files = fs.readdirSync("./memolist");
-  for (let file of files) {
-    const text = fs.readFileSync(`./memolist/${file}`, "utf8");
-    const lines = text.toString().split("\n");
-    console.log(lines[0]);
+  async function get_fileData() {
+    try {
+      await fs.access(directoryPath, fs.constants.F_OK);
+      const files = await fs.readdir(directoryPath);
+      if (files.length === 0) {
+        console.log("memoはありません");
+      } else {
+        for (let file of files) {
+          const filePath = path.join(directoryPath, file);
+          const text = await fs.readFile(filePath, { encoding: "utf8" });
+          const firstLine = text.toString().split("\n")[0];
+          console.log(firstLine);
+        }
+      }
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        console.log("memoはありません");
+      } else {
+        console.log(err);
+      }
+    }
   }
+  get_fileData();
 } else if (argv.reference) {
-  const { Select } = require("enquirer");
-  const prompt = new Select({
-    name: "file_name",
-    message: "Choose a note you want to see:",
-    choices: getFileList(),
-  });
-  prompt
-    .run()
-    .then((answer) => {
-      console.dir(answer);
-      const fileContent = fs.readFileSync(`./memolist/${answer}`, "utf8");
-      console.log(fileContent);
-    })
-    .catch(console.error);
-} else if (argv.delete) {
-  const { Select } = require("enquirer");
-  const prompt = new Select({
-    name: "file_name",
-    message: "Choose a note you want to delete:",
-    choices: getFileList(),
-  });
-  prompt
-    .run()
-    .then((answer) => {
-      fs.unlinkSync(`./memolist/${answer}`);
-      console.log("text was deleted");
-    })
-    .catch(console.error);
-} else {
-  let filename = Math.random().toString(32).substring(2);
-  const data = [];
+  async function get_file_info() {
+    const fileinfos = [];
+    try {
+      await fs.access(directoryPath, fs.constants.F_OK);
+      const fileNames = await fs.readdir(directoryPath);
+      if (fileNames.length === 0) {
+        console.log("memoはありません");
+      } else {
+        for (let fileName of fileNames) {
+          const filePath = path.join(directoryPath, fileName);
+          const fileContent = await fs.readFile(filePath, { encoding: "utf8" });
+          const firstLine = fileContent.split("\n")[0];
+          fileinfos.push({ message: firstLine, value: fileName });
+        }
+      }
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        console.log("memoはありません");
+      } else {
+        console.log(err);
+      }
+    }
+    return fileinfos;
+  }
 
-  let reader = readline.createInterface({
+  async function get_file_content(fileName) {
+    try {
+      const filePath = path.join(directoryPath, fileName);
+      const fileContent = await fs.readFile(filePath, "utf8");
+      return fileContent;
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+  (async () => {
+    const fileinfos = await get_file_info();
+    if (fileinfos.length > 0) {
+      const prompt = new Select({
+        name: "file_name",
+        message: "Choose a note you want to see:",
+        choices: fileinfos,
+      });
+      prompt
+        .run()
+        .then((fileName) => {
+          return get_file_content(fileName);
+        })
+        .then((fileContent) => {
+          console.log(fileContent);
+        })
+        .catch(console.error);
+    }
+  })();
+} else if (argv.delete) {
+  async function get_file_info() {
+    const fileinfos = [];
+    try {
+      await fs.access(directoryPath, fs.constants.F_OK);
+      const fileNames = await fs.readdir(directoryPath);
+      if (fileNames.length === 0) {
+        console.log("memoはありません");
+      } else {
+        for (let fileName of fileNames) {
+          const filePath = path.join(directoryPath, fileName);
+          const file_content = await fs.readFile(filePath, {
+            encoding: "utf8",
+          });
+          const firstLine = file_content.split("\n")[0];
+          fileinfos.push({ message: firstLine, value: fileName });
+        }
+      }
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        console.log("memoはありません");
+      } else {
+        console.log(err);
+      }
+    }
+    return fileinfos;
+  }
+
+  async function delete_file(file_name) {
+    try {
+      const filePath = path.join(directoryPath, file_name);
+      await fs.unlink(filePath);
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+  (async () => {
+    const fileinfo = await get_file_info();
+    if (fileinfo.length > 0) {
+      const prompt = new Select({
+        name: "file_name",
+        message: "Choose a note you want to see:",
+        choices: fileinfo,
+      });
+      prompt
+        .run()
+        .then((filename) => {
+          return delete_file(filename);
+        })
+        .catch(console.error);
+    }
+  })();
+} else {
+  const filename = Math.random().toString(32).substring(2);
+  const data = [];
+  async function checkDirectory(directoryPath) {
+    try {
+      await fs.access(directoryPath);
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        try {
+          await fs.mkdir(directoryPath);
+        } catch (err) {
+          console.error(err);
+        }
+      } else {
+        console.error(err);
+      }
+    }
+  }
+
+  const reader = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
   });
@@ -82,12 +181,15 @@ if (argv.list) {
     data.push(line);
   });
   reader.on("close", () => {
-    fs.writeFile(
-      `./memolist/${filename}.txt`,
-      data.join("\n"),
-      function (error) {
-        console.log("エラーが発生しました。" + error);
+    async function get_fileData() {
+      try {
+        await checkDirectory(directoryPath);
+        const filePath = path.join(directoryPath, filename);
+        await fs.writeFile(filePath, data.join("\n"));
+      } catch (err) {
+        console.error(err);
       }
-    );
+    }
+    get_fileData();
   });
 }
