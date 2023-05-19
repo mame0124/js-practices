@@ -5,7 +5,7 @@ const path = require("path");
 const { Select } = require("enquirer");
 const argv = yargs
   .locale("en")
-  .usage("$0 checks whether the year is a leap year or not.")
+  .usage("Save and view memos.")
   .option("list", {
     alias: "l",
   })
@@ -22,142 +22,26 @@ const argv = yargs
 
 const directoryPath = "./memolist";
 
-if (argv.list) {
-  async function get_fileData() {
+class Memo {
+  constructor() {
+    this.text = [];
+  }
+  add(addText) {
+    this.text.push(addText);
+  }
+  async save(directoryPath) {
     try {
-      await fs.access(directoryPath, fs.constants.F_OK);
-      const files = await fs.readdir(directoryPath);
-      if (files.length === 0) {
-        console.log("memoはありません");
-      } else {
-        for (let file of files) {
-          const filePath = path.join(directoryPath, file);
-          const text = await fs.readFile(filePath, { encoding: "utf8" });
-          const firstLine = text.toString().split("\n")[0];
-          console.log(firstLine);
-        }
-      }
+      await this.checkDirectory(directoryPath);
+      const filePath = path.join(
+        directoryPath,
+        Math.random().toString(32).substring(2)
+      );
+      fs.writeFile(filePath, this.text.join("\n"));
     } catch (err) {
-      if (err.code === "ENOENT") {
-        console.log("memoはありません");
-      } else {
-        console.log(err);
-      }
+      console.error(err);
     }
   }
-  get_fileData();
-} else if (argv.reference) {
-  async function get_file_info() {
-    const fileinfos = [];
-    try {
-      await fs.access(directoryPath, fs.constants.F_OK);
-      const fileNames = await fs.readdir(directoryPath);
-      if (fileNames.length === 0) {
-        console.log("memoはありません");
-      } else {
-        for (let fileName of fileNames) {
-          const filePath = path.join(directoryPath, fileName);
-          const fileContent = await fs.readFile(filePath, { encoding: "utf8" });
-          const firstLine = fileContent.split("\n")[0];
-          fileinfos.push({ message: firstLine, value: fileName });
-        }
-      }
-    } catch (err) {
-      if (err.code === "ENOENT") {
-        console.log("memoはありません");
-      } else {
-        console.log(err);
-      }
-    }
-    return fileinfos;
-  }
-
-  async function get_file_content(fileName) {
-    try {
-      const filePath = path.join(directoryPath, fileName);
-      const fileContent = await fs.readFile(filePath, "utf8");
-      return fileContent;
-    } catch (err) {
-      console.log(err);
-    }
-  }
-
-  (async () => {
-    const fileinfos = await get_file_info();
-    if (fileinfos.length > 0) {
-      const prompt = new Select({
-        name: "file_name",
-        message: "Choose a note you want to see:",
-        choices: fileinfos,
-      });
-      prompt
-        .run()
-        .then((fileName) => {
-          return get_file_content(fileName);
-        })
-        .then((fileContent) => {
-          console.log(fileContent);
-        })
-        .catch(console.error);
-    }
-  })();
-} else if (argv.delete) {
-  async function get_file_info() {
-    const fileinfos = [];
-    try {
-      await fs.access(directoryPath, fs.constants.F_OK);
-      const fileNames = await fs.readdir(directoryPath);
-      if (fileNames.length === 0) {
-        console.log("memoはありません");
-      } else {
-        for (let fileName of fileNames) {
-          const filePath = path.join(directoryPath, fileName);
-          const file_content = await fs.readFile(filePath, {
-            encoding: "utf8",
-          });
-          const firstLine = file_content.split("\n")[0];
-          fileinfos.push({ message: firstLine, value: fileName });
-        }
-      }
-    } catch (err) {
-      if (err.code === "ENOENT") {
-        console.log("memoはありません");
-      } else {
-        console.log(err);
-      }
-    }
-    return fileinfos;
-  }
-
-  async function delete_file(file_name) {
-    try {
-      const filePath = path.join(directoryPath, file_name);
-      await fs.unlink(filePath);
-    } catch (err) {
-      console.log(err);
-    }
-  }
-
-  (async () => {
-    const fileinfo = await get_file_info();
-    if (fileinfo.length > 0) {
-      const prompt = new Select({
-        name: "file_name",
-        message: "Choose a note you want to see:",
-        choices: fileinfo,
-      });
-      prompt
-        .run()
-        .then((filename) => {
-          return delete_file(filename);
-        })
-        .catch(console.error);
-    }
-  })();
-} else {
-  const filename = Math.random().toString(32).substring(2);
-  const data = [];
-  async function checkDirectory(directoryPath) {
+  async checkDirectory(directoryPath) {
     try {
       await fs.access(directoryPath);
     } catch (err) {
@@ -172,24 +56,136 @@ if (argv.list) {
       }
     }
   }
+}
 
-  const reader = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-  reader.on("line", (line) => {
-    data.push(line);
-  });
-  reader.on("close", () => {
-    async function get_fileData() {
-      try {
-        await checkDirectory(directoryPath);
-        const filePath = path.join(directoryPath, filename);
-        await fs.writeFile(filePath, data.join("\n"));
-      } catch (err) {
-        console.error(err);
+class File {
+  constructor(filePath) {
+    this.path = filePath;
+    this.fileName = path.basename(filePath);
+  }
+  async get_firstLine_and_fileName() {
+    const content = await fs.readFile(this.path, { encoding: "utf8" });
+    const firstLine = content.split("\n")[0];
+    return { message: firstLine, value: this.fileName };
+  }
+  async get_content() {
+    try {
+      const content = await fs.readFile(this.path, "utf8");
+      return content;
+    } catch (err) {
+      console.log(err);
+    }
+  }
+  async delete_file() {
+    try {
+      await fs.unlink(this.path);
+    } catch (err) {
+      console.log(err);
+    }
+  }
+}
+
+class MemoDirectory {
+  constructor(directoryPath) {
+    this.path = directoryPath;
+  }
+  async getFileinfo() {
+    const fileinfos = [];
+    try {
+      await fs.access(this.path, fs.constants.F_OK);
+      const fileNames = await fs.readdir(this.path);
+      if (fileNames.length === 0) {
+        console.log("memoはありません");
+      } else {
+        for (let fileName of fileNames) {
+          const filePath = path.join(this.path, fileName);
+          const file = new File(filePath);
+          fileinfos.push(file);
+        }
+      }
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        console.log("memoはありません");
+      } else {
+        console.log(err);
       }
     }
-    get_fileData();
+    return fileinfos;
+  }
+}
+
+if (argv.list) {
+  (async () => {
+    const memolistDirectory = new MemoDirectory(directoryPath);
+    const files = await memolistDirectory.getFileinfo();
+    if (files.length > 0) {
+      for (let file of files) {
+        const content = await file.get_content();
+        const firstLine = content.toString().split("\n")[0];
+        console.log(firstLine);
+      }
+    }
+  })();
+} else if (argv.reference) {
+  (async () => {
+    const memolistDirectory = new MemoDirectory(directoryPath);
+    const files = await memolistDirectory.getFileinfo();
+    if (files.length > 0) {
+      const firstLine_and_fileName = files.map(async (file) => {
+        return await file.get_firstLine_and_fileName();
+      });
+
+      const prompt = new Select({
+        name: "file_name",
+        message: "Choose a note you want to see:",
+        choices: firstLine_and_fileName,
+      });
+      prompt
+        .run()
+        .then((fileName) => {
+          return new File(path.join(directoryPath, fileName)).get_content();
+        })
+        .then((fileContent) => {
+          console.log(fileContent);
+        })
+        .catch(console.error);
+    }
+  })();
+} else if (argv.delete) {
+  (async () => {
+    const memolistDirectory = new MemoDirectory(directoryPath);
+    const files = await memolistDirectory.getFileinfo();
+    if (files.length > 0) {
+      if (files.length > 0) {
+        const firstLine_and_fileName = files.map(async (file) => {
+          return await file.get_firstLine_and_fileName();
+        });
+        const prompt = new Select({
+          name: "file_name",
+          message: "Choose a note you want to see:",
+          choices: firstLine_and_fileName,
+        });
+        prompt
+          .run()
+          .then((filename) => {
+            const memo = new File(path.join(directoryPath, filename));
+            return memo.delete_file();
+          })
+          .catch(console.error);
+      }
+    }
+  })();
+} else {
+  const memo = new Memo();
+  const reader = readline.createInterface({
+    input: process.stdin,
+  });
+  reader.on("line", (line) => {
+    memo.add(line);
+  });
+  reader.on("close", () => {
+    (async () => {
+      await memo.save(directoryPath);
+    })();
   });
 }
